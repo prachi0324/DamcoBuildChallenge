@@ -1,0 +1,10 @@
+langchain==0.2.12
+langchain-groq==0.1.9
+langchain-community==0.2.11
+langchain-core==0.2.23
+faiss-cpu==1.8.0
+sentence-transformers==3.0.1
+python-telegram-bot==21.3
+python-dotenv==1.0.1
+pydantic==2.7.4
+nest_asyncio==1.6.0
