@@ -240,6 +240,20 @@ async def fallback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_message = update.message.text
     await update.message.reply_text("🤔 Let me check your plan...")
     try:
+        # If session empty, load latest plan from RAG
+        if user_id not in user_sessions:
+            from rag_store import retrieve_past_context
+            past = retrieve_past_context(user_id, "week plan tasks schedule", k=1)
+            if "No past plans" not in past:
+                user_sessions[user_id] = past
+                logger.info(f"Loaded plan from RAG for {user_id}")
+
+        if user_id not in user_sessions:
+            await update.message.reply_text(
+                "📭 No plan found. Use /plan first to create your week plan!"
+            )
+            return
+
         response = answer_natural_query(user_id, user_message, user_sessions)
         await update.message.reply_text(response)
     except Exception as e:
