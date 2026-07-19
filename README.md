@@ -1,12 +1,12 @@
-# 🗓️ Week Planner Bot
+# 🗓️ Week Planner Bot — Damco Builder Challenge
 
-> AI-powered Telegram bot that plans your week, remembers past weeks, and responds to natural language — built for the Damco Builder Challenge.
+> AI-powered Telegram bot that plans your week, remembers past weeks via RAG, and responds to natural language — built for the Damco Builder Challenge.
 
 ---
 
 ## Problem
 
-People start every week with zero structure. Tasks are scattered across WhatsApp, notes, and memory. By Wednesday priorities are lost and deadlines missed. Existing tools (Notion, Google Calendar) require manual input and give zero intelligence — they're just storage.
+Tasks scattered across WhatsApp, notes, and memory. No structure. By Wednesday everything's chaos. Existing tools like Notion or Google Calendar require manual input and give zero intelligence — they're just storage.
 
 ---
 
@@ -14,11 +14,12 @@ People start every week with zero structure. Tasks are scattered across WhatsApp
 
 A Telegram bot that:
 - Takes weekly tasks in plain English
-- Retrieves past weeks via **RAG** to carry forward incomplete tasks
-- Generates a structured day-by-day plan using **Groq LLaMA 3.1**
+- Remembers past weeks via RAG to carry forward incomplete tasks
+- Generates a structured day-by-day plan using Groq LLaMA 3.1
 - Responds to natural language: *"What do I have tomorrow?"*, *"Reschedule standup to 12pm"*
-- Supports **full month planning** — plan multiple weeks, view monthly overview
-- Gets smarter every week as it builds up your history
+- Supports full month planning — plan multiple weeks, view monthly overview
+- Gets smarter every week as history builds up
+- Loads plan from RAG automatically even after session restart
 
 ---
 
@@ -30,6 +31,7 @@ User (Telegram)
       ▼
 bot.py (Interface Layer)
   7 commands + natural language fallback
+  RAG fallback when session is empty
       │
       ▼
 agent.py (Chain Layer)
@@ -38,32 +40,49 @@ agent.py (Chain Layer)
       │
       ▼
 rag_store.py (Memory Layer)
-  FAISS + HuggingFace embeddings
+  FAISS + HuggingFace all-MiniLM-L6-v2
   Per-user, per-week indexed storage
+  Persistent on Google Drive
 ```
-
-See [docs/architecture.md](docs/architecture.md) for full design doc.
 
 ---
 
-## Features
+## 7 LangChain Chains
+
+| Chain | Purpose |
+|-------|---------|
+| PlannerChain | Generate structured weekly plan with RAG context |
+| ModifyChain | Flexible plan modification — no hardcoded rules |
+| TodayChain | Extract today's focus using actual system date |
+| SummaryChain | Summarize past weeks from RAG memory |
+| InsightsChain | Productivity pattern analysis |
+| MonthChain | Full month overview across all saved weeks |
+| NaturalChain | Handle any query or update via intent detection |
+
+---
+
+## Commands
 
 | Command | Description |
 |---------|-------------|
-| `/plan` | Create week plan — pick this week / next week / week 3 / week 4 |
+| `/plan` | Create week plan — pick this/next/week3/week4 |
 | `/modify` | Modify anything in current plan |
-| `/today` | Today's focus (uses actual system date) |
-| `/summary` | Summary of past weeks from RAG memory |
+| `/today` | Today's focus (actual system date aware) |
+| `/summary` | Past weeks summary from RAG memory |
 | `/insights` | AI productivity pattern analysis |
-| `/month` | Full month overview across all saved weeks |
+| `/month` | Full month overview |
 | `/help` | All commands |
 
-**Natural language** — just type anything:
+---
+
+## Natural Language
+
+Just type anything:
 - *"What do I have today?"* → shows actual today's tasks
 - *"What's tomorrow looking like?"* → shows actual tomorrow
-- *"Am I free on Wednesday?"* → checks plan and answers
-- *"Reschedule my standup to 12pm"* → auto-detects update, modifies plan
-- *"What's pending this week?"* → summarizes unfinished items
+- *"Reschedule standup to 12pm"* → auto-detects update, modifies plan
+- *"Am I free Wednesday?"* → checks and answers
+- *"What's pending this week?"* → analyzes and summarizes
 
 ---
 
@@ -71,115 +90,87 @@ See [docs/architecture.md](docs/architecture.md) for full design doc.
 
 | Layer | Technology |
 |-------|-----------|
-| LLM | Groq LLaMA 3.1 8B Instant |
+| LLM | Groq LLaMA 3.1 8B Instant (free, 14,400 req/day) |
 | Chain Orchestration | LangChain (7 chains) |
-| Embeddings | HuggingFace `all-MiniLM-L6-v2` |
-| Vector Store | FAISS (local) |
+| Embeddings | HuggingFace all-MiniLM-L6-v2 (local, free) |
+| Vector Store | FAISS (Google Drive persistent) |
 | Bot Interface | python-telegram-bot v21 |
-| Config | python-dotenv |
 | Testing | unittest (15 test cases) |
+| Runtime | Google Colab |
 
 ---
 
-## Setup
+## File Structure
 
-### 1. Clone
-```bash
-git clone https://github.com/prachi0324/DamcoBuildChallenge.git
-cd DamcoBuildChallenge
 ```
-
-### 2. Install
-```bash
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-pip install -r requirements.txt
-```
-
-### 3. Configure
-```bash
-cp .env.example .env
-# Edit .env and add:
-# TELEGRAM_BOT_TOKEN — from @BotFather on Telegram
-# GROQ_API_KEY — from console.groq.com (free, no card needed)
-```
-
-### 4. Run
-```bash
-python bot.py
-```
-
-### 5. Test
-```bash
-python -m pytest tests/ -v
+DamcoBuildChallenge/
+├── bot.py              # Telegram handlers + RAG session fallback
+├── agent.py            # 7 LangChain chains + retry logic
+├── rag_store.py        # FAISS RAG — save/retrieve/month plans
+├── config.py           # All constants centralized
+├── requirements.txt    # Pinned dependencies
+├── run.ipynb           # Colab notebook — clone and run in 7 cells
+├── tests/
+│   └── test_agent.py  # 15 unit tests
+└── docs/
+    └── architecture.md # Full system design doc
 ```
 
 ---
 
-## Running on Google Colab
+## Setup on Google Colab
 
-If running on Colab (no persistent server):
-```python
-import nest_asyncio
-nest_asyncio.apply()
-
-import asyncio
-from bot import build_app
-
-app = build_app()
-await app.run_polling(drop_pending_updates=True)
-```
-
-Set secrets in Colab: `TELEGRAM_BOT_TOKEN` and `GROQ_API_KEY`
-
-For persistence, mount Google Drive and set:
-```
-STORE_DIR=/content/drive/MyDrive/week-planner/faiss_store
-```
+1. Open `run.ipynb` in Colab
+2. Add Colab Secrets: `TELEGRAM_BOT_TOKEN` and `GROQ_API_KEY`
+3. Run all cells top to bottom
+4. Open your bot in Telegram and send `/start`
 
 ---
 
-## Testing
+## Get API Keys (both free, no card needed)
+
+- **Telegram**: Message @BotFather → `/newbot` → copy token
+- **Groq**: [console.groq.com](https://console.groq.com) → Create API Key
+
+---
+
+## Run Tests
 
 ```bash
-python -m pytest tests/ -v
+python -m pytest tests/test_agent.py -v
 ```
 
-15 test cases covering:
-- Week key/label generation
-- Update intent detection (8 cases)
-- Config validation
-- RAG store graceful fallback
+15 tests covering intent detection, RAG fallback, config validation, and week key generation.
 
 ---
 
 ## Key Design Decisions
 
-**Groq over OpenAI/Gemini**: Gemini free tier has 0 quota in India. OpenAI requires billing. Groq gives 14,400 free requests/day with LLaMA 3.1 quality.
+**Groq over OpenAI/Gemini**: Gemini free tier has 0 quota in India. OpenAI requires billing. Groq gives 14,400 free requests/day with LLaMA 3.1 quality — right tool for the job.
 
-**FAISS over Weaviate**: Zero infrastructure, runs locally. Tradeoff: no metadata filtering. At scale, swap to Weaviate for exact week-key retrieval.
+**FAISS over Weaviate**: Zero infrastructure, runs on Google Drive, no cost. Tradeoff: no metadata filtering — retrieves by similarity not exact week key. At scale, swap to Weaviate for metadata-filtered retrieval.
 
-**7 chains over 1 prompt**: Each chain has narrow responsibility — independently testable, debuggable, and swappable. Failure in one doesn't break others.
+**7 chains over 1 prompt**: Each chain has a narrow, focused responsibility — independently testable and debuggable. Failure in one chain doesn't break others.
 
-**Telegram over web app**: Zero friction. Users are already there daily.
+**RAG session fallback**: If Colab restarts and session is lost, bot automatically reloads the latest plan from FAISS — no data loss, seamless continuity.
 
 ---
 
-## Failure Modes & Mitigations
+## Failure Modes
 
 | Failure | Mitigation |
 |---------|-----------|
 | Groq rate limit | Exponential backoff retry (3 attempts) |
-| Colab session dies | Data safe in FAISS/Drive; redeploy on Railway for production |
-| No past history | Graceful fallback — plan generated without RAG context |
+| Colab session dies | Plan reloaded from FAISS/Drive automatically |
 | Wrong day inference | System date explicitly injected into every prompt |
+| No past history | Graceful fallback message, plan generated fresh |
 
 ---
 
 ## What I'd Add Next
 
 - Google Calendar sync (auto-block time slots)
-- Daily 8am reminder with top 3 priorities
+- Daily 8am priority reminder with top 3 tasks
 - Voice message support (Whisper STT → text → plan)
-- Swap FAISS → Weaviate for metadata-filtered week retrieval
+- Swap FAISS → Weaviate for exact week-key metadata retrieval
 - Deploy on Railway for always-on production hosting
